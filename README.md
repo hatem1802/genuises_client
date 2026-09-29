@@ -15,7 +15,7 @@ Client runs on `http://localhost:3001` (API stays on `:3000`).
 ## Environment
 
 ```
-VITE_API_URL=http://localhost:3000
+VITE_API_URL=http://localhost:3000/api
 ```
 
 Validated with Zod in `src/lib/env.ts`.

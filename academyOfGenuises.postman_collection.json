@@ -1,0 +1,486 @@
+{
+  "info": {
+    "name": "Academy Of Genuises API",
+    "description": "All API endpoints. Run the Login requests first: they save adminToken / instructorToken / studentToken automatically. Create requests save instructorId, studentId, courseId, requestId into collection variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "adminToken", "value": "" },
+    { "key": "instructorToken", "value": "" },
+    { "key": "studentToken", "value": "" },
+    { "key": "instructorId", "value": "" },
+    { "key": "studentId", "value": "" },
+    { "key": "courseId", "value": "" },
+    { "key": "requestId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Register Instructor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('instructorId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"instructor1@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"instructor1\",\n  \"fullname\": \"Instructor One\",\n  \"role\": \"instructor\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('studentId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student1@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"student1\",\n  \"fullname\": \"Student One\",\n  \"role\": \"student\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register Admin (admin only)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/register/admin",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin2@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"admin2\",\n  \"fullname\": \"Second Admin\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.token) pm.collectionVariables.set('adminToken', res.data.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@test.com\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Instructor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.token) {",
+                  "  pm.collectionVariables.set('instructorToken', res.data.token);",
+                  "  pm.collectionVariables.set('instructorId', res.data.user._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"instructor1@test.com\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.token) {",
+                  "  pm.collectionVariables.set('studentToken', res.data.token);",
+                  "  pm.collectionVariables.set('studentId', res.data.user._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student1@test.com\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update User (self or admin)",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/{{studentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullname\": \"Student One Updated\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete User (self or admin)",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/users/{{studentId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "Create Course - Admin (published, with files)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/cources/admin",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "instructorId", "value": "{{instructorId}}", "type": "text" },
+                { "key": "title", "value": "JS Basics", "type": "text" },
+                { "key": "description", "value": "Full introduction course to JavaScript", "type": "text" },
+                { "key": "price", "value": "100", "type": "text" },
+                { "key": "durationDays", "value": "30", "type": "text" },
+                {
+                  "key": "lectures",
+                  "value": "[{\"title\":\"Intro\",\"fileIndex\":0},{\"title\":\"Variables\",\"fileIndex\":1},{\"title\":\"Functions\"}]",
+                  "type": "text"
+                },
+                {
+                  "key": "fullQuiz",
+                  "value": "{\"title\":\"Final Quiz\",\"questions\":[{\"question\":\"What is JS?\",\"choices\":[\"Language\",\"Framework\",\"Database\"],\"correctAnswer\":\"Language\",\"points\":2}]}",
+                  "type": "text"
+                },
+                { "key": "certificateTemplate", "value": "", "type": "text" },
+                { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 1 file (fileIndex 0) - choose a video/file" },
+                { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 2 file (fileIndex 1) - choose a video/file" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Course - Admin (titles only, JSON)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cources/admin",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instructorId\": \"{{instructorId}}\",\n  \"title\": \"Node.js Course\",\n  \"description\": \"Backend development with Node.js\",\n  \"price\": 150,\n  \"durationDays\": 45,\n  \"lectures\": [\n    { \"title\": \"Intro to Node\" },\n    { \"title\": \"Express\", \"lectureLink\": \"https://example.com/express\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Create Course - Instructor (waiting, with file)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/cources/instructor",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "title", "value": "React Course", "type": "text" },
+                { "key": "description", "value": "Frontend development with React", "type": "text" },
+                { "key": "price", "value": "200", "type": "text" },
+                { "key": "durationDays", "value": "60", "type": "text" },
+                { "key": "lectures", "value": "[{\"title\":\"Intro to React\",\"fileIndex\":0},{\"title\":\"Hooks\"}]", "type": "text" },
+                { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 1 file (fileIndex 0)" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Course - Instructor (empty, JSON)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/cources/instructor",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Python Course\",\n  \"description\": \"Python programming from scratch\",\n  \"price\": 120,\n  \"durationDays\": 30\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Access Codes",
+      "item": [
+        {
+          "name": "Generate Codes (admin)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/access-codes/generate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"count\": 5\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Requests",
+      "item": [
+        {
+          "name": "Create Request (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) pm.collectionVariables.set('requestId', res.data._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/requests",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "courseId", "value": "{{courseId}}", "type": "text" },
+                { "key": "paymentDoc", "type": "file", "src": [], "description": "PDF / JPEG / PNG / WebP, max 5MB" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Requests (admin)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/requests?status=waiting_for_review",
+              "host": ["{{baseUrl}}"],
+              "path": ["requests"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "waiting_for_review",
+                  "description": "approved | rejected | waiting_for_review | waiting_for_correction"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Request By Id",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/requests/{{requestId}}"
+          }
+        },
+        {
+          "name": "Approve Request (admin)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/requests/{{requestId}}/approve"
+          }
+        },
+        {
+          "name": "Reject Request (admin)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/requests/{{requestId}}/reject"
+          }
+        },
+        {
+          "name": "Return Request For Correction (admin)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/requests/{{requestId}}/return"
+          }
+        },
+        {
+          "name": "Update Request (student)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/requests/{{requestId}}",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "courseId", "value": "{{courseId}}", "type": "text" },
+                { "key": "paymentDoc", "type": "file", "src": [], "description": "Optional new payment document" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
