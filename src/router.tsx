@@ -3,18 +3,11 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   redirect,
 } from "@tanstack/react-router";
+import { PageLoader } from "@/components/ui/page-loader";
 import { isAdminAuthenticated } from "@/lib/auth";
-import { AdminLayout } from "@/components/admin/admin-layout";
-import { AdminLoginPage } from "@/pages/admin/login";
-import { AdminOverviewPage } from "@/pages/admin/overview";
-import { AdminCoursesPage } from "@/pages/admin/courses";
-import { AdminRequestsPage } from "@/pages/admin/requests";
-import { AdminUsersPage } from "@/pages/admin/users";
-import { AdminPackagesPage } from "@/pages/admin/packages";
-import { AdminAccessCodesPage } from "@/pages/admin/access-codes";
-import { AdminAccountPage } from "@/pages/admin/account";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -38,7 +31,7 @@ const adminLoginRoute = createRoute({
       throw redirect({ to: "/admin" });
     }
   },
-  component: AdminLoginPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/login"), "AdminLoginPage"),
 });
 
 const adminLayoutRoute = createRoute({
@@ -49,49 +42,79 @@ const adminLayoutRoute = createRoute({
       throw redirect({ to: "/admin/login" });
     }
   },
-  component: AdminLayout,
+  component: lazyRouteComponent(() => import("@/components/admin/admin-layout"), "AdminLayout"),
 });
 
 const adminIndexRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/",
-  component: AdminOverviewPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/overview"), "AdminOverviewPage"),
 });
 
 const adminCoursesRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/courses",
-  component: AdminCoursesPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/courses"), "AdminCoursesPage"),
+});
+
+const adminCourseNewRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/courses/new",
+  component: lazyRouteComponent(() => import("@/pages/admin/course-new"), "AdminCourseNewPage"),
+});
+
+const adminCourseDetailsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/courses/$courseId",
+  component: lazyRouteComponent(
+    () => import("@/pages/admin/course-details"),
+    "AdminCourseDetailsPage"
+  ),
 });
 
 const adminRequestsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/requests",
-  component: AdminRequestsPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/requests"), "AdminRequestsPage"),
 });
 
 const adminUsersRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/users",
-  component: AdminUsersPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/users"), "AdminUsersPage"),
+});
+
+const adminUserDetailsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/users/$userId",
+  component: lazyRouteComponent(
+    () => import("@/pages/admin/user-details"),
+    "AdminUserDetailsPage"
+  ),
 });
 
 const adminPackagesRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/packages",
-  component: AdminPackagesPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/packages"), "AdminPackagesPage"),
 });
 
 const adminAccessCodesRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/access-codes",
-  component: AdminAccessCodesPage,
+  validateSearch: (search: Record<string, unknown>): { courseId?: string } => ({
+    courseId: typeof search.courseId === "string" ? search.courseId : undefined,
+  }),
+  component: lazyRouteComponent(
+    () => import("@/pages/admin/access-codes"),
+    "AdminAccessCodesPage"
+  ),
 });
 
 const adminAccountRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/account",
-  component: AdminAccountPage,
+  component: lazyRouteComponent(() => import("@/pages/admin/account"), "AdminAccountPage"),
 });
 
 const routeTree = rootRoute.addChildren([
@@ -100,15 +123,22 @@ const routeTree = rootRoute.addChildren([
   adminLayoutRoute.addChildren([
     adminIndexRoute,
     adminCoursesRoute,
+    adminCourseNewRoute,
+    adminCourseDetailsRoute,
     adminRequestsRoute,
     adminUsersRoute,
+    adminUserDetailsRoute,
     adminPackagesRoute,
     adminAccessCodesRoute,
     adminAccountRoute,
   ]),
 ]);
 
-export const router = createRouter({ routeTree });
+export const router = createRouter({
+  routeTree,
+  defaultPreload: "intent",
+  defaultPendingComponent: PageLoader,
+});
 
 declare module "@tanstack/react-router" {
   interface Register {

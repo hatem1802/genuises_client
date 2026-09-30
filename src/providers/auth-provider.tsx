@@ -26,6 +26,7 @@ type AuthContextValue = {
   token: string | null;
   user: AdminUser | null;
   loginSuccess: (session?: LoginSession) => void;
+  updateCurrentUser: (user: AdminUser) => void;
   logout: () => void;
 };
 
@@ -52,6 +53,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(getAdminUser());
   }, []);
 
+  const updateCurrentUser = useCallback((nextUser: AdminUser) => {
+    setAdminUser(nextUser);
+    setUser(nextUser);
+  }, []);
+
   const logout = useCallback(() => {
     clearAdminSession();
     setToken(null);
@@ -64,9 +70,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       token,
       user,
       loginSuccess,
+      updateCurrentUser,
       logout,
     }),
-    [token, user, loginSuccess, logout]
+    [token, user, loginSuccess, updateCurrentUser, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

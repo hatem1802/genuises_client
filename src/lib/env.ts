@@ -15,3 +15,5 @@ if (!parsed.success) {
 }
 
 export const API_URL = parsed.data.VITE_API_URL;
+
+export const API_ORIGIN = new URL(API_URL).origin;

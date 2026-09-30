@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Academy Of Genuises API",
-    "description": "All API endpoints. Run the Login requests first: they save adminToken / instructorToken / studentToken automatically. Create requests save instructorId, studentId, courseId, requestId into collection variables.",
+    "description": "Run `npm run seed` first. All seeded users use the password 123456.\n\nSuggested order:\n1. Auth > the three Login requests. They save adminToken / instructorToken / studentToken and instructorId / studentId.\n2. Courses > Browse > List Courses (admin). It saves courseId / lectureId from the first published course that has lectures. Set courseId manually to target another course.\n3. Access Codes > Generate Codes, then Requests > List Requests (admin), which saves requestId, then Approve Request.\n4. Cleanup > Delete User runs last because it removes the student used by the other requests.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,6 +12,7 @@
     { "key": "instructorId", "value": "" },
     { "key": "studentId", "value": "" },
     { "key": "courseId", "value": "" },
+    { "key": "lectureId", "value": "" },
     { "key": "requestId", "value": "" }
   ],
   "item": [
@@ -22,78 +23,15 @@
           "name": "Health Check",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/health"
+            "url": "{{baseUrl}}/health",
+            "description": "Public."
           }
         }
       ]
     },
     {
-      "name": "Users",
+      "name": "Auth",
       "item": [
-        {
-          "name": "Register Instructor",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) pm.collectionVariables.set('instructorId', res.data._id);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{baseUrl}}/users/register",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"instructor1@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"instructor1\",\n  \"fullname\": \"Instructor One\",\n  \"role\": \"instructor\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Register Student",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) pm.collectionVariables.set('studentId', res.data._id);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{baseUrl}}/users/register",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"student1@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"student1\",\n  \"fullname\": \"Student One\",\n  \"role\": \"student\"\n}"
-            }
-          }
-        },
-        {
-          "name": "Register Admin (admin only)",
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
-            },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{baseUrl}}/users/register/admin",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"admin2@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"admin2\",\n  \"fullname\": \"Second Admin\"\n}"
-            }
-          }
-        },
         {
           "name": "Login Admin",
           "event": [
@@ -115,7 +53,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"admin@test.com\",\n  \"password\": \"123456\"\n}"
-            }
+            },
+            "description": "Public. Saves adminToken."
           }
         },
         {
@@ -142,7 +81,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"instructor1@test.com\",\n  \"password\": \"123456\"\n}"
-            }
+            },
+            "description": "Public. Saves instructorToken and instructorId."
           }
         },
         {
@@ -169,11 +109,83 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"student1@test.com\",\n  \"password\": \"123456\"\n}"
-            }
+            },
+            "description": "Public. Saves studentToken and studentId."
           }
         },
         {
-          "name": "Update User (self or admin)",
+          "name": "Register Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student3@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"student3\",\n  \"fullname\": \"Student Three\",\n  \"role\": \"student\"\n}"
+            },
+            "description": "Public. role: student | instructor. Returns 409 if the email or username already exists."
+          }
+        },
+        {
+          "name": "Register Instructor",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"instructor3@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"instructor3\",\n  \"fullname\": \"Instructor Three\",\n  \"role\": \"instructor\"\n}"
+            },
+            "description": "Public. Returns 409 if the email or username already exists."
+          }
+        },
+        {
+          "name": "Register Admin",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/register/admin",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin2@test.com\",\n  \"password\": \"123456\",\n  \"username\": \"admin2\",\n  \"fullname\": \"Second Admin\"\n}"
+            },
+            "description": "Admin only. Returns 409 if the email or username already exists."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "role", "value": "student", "description": "instructor | student | admin", "disabled": true },
+                { "key": "status", "value": "blocked", "description": "approved | waiting_approval | rejected | blocked", "disabled": true },
+                { "key": "search", "value": "student", "description": "Matches email, username, or fullname", "disabled": true },
+                { "key": "page", "value": "1", "description": "Default 1" },
+                { "key": "limit", "value": "20", "description": "Default 20, max 100" }
+              ]
+            },
+            "description": "Admin only. Passwords are never returned."
+          }
+        },
+        {
+          "name": "Update User (self)",
           "request": {
             "method": "PUT",
             "auth": {
@@ -185,18 +197,49 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"fullname\": \"Student One Updated\"\n}"
-            }
+            },
+            "description": "The user themself or an admin. role and status are ignored for non-admins."
           }
         },
         {
-          "name": "Delete User (self or admin)",
+          "name": "Update User (admin)",
           "request": {
-            "method": "DELETE",
+            "method": "PUT",
             "auth": {
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
             },
-            "url": "{{baseUrl}}/users/{{studentId}}"
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/users/{{studentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullname\": \"Student One\",\n  \"role\": \"student\",\n  \"status\": \"approved\"\n}"
+            },
+            "description": "Admin can also change role and status (approved | waiting_approval | rejected | blocked)."
+          }
+        },
+        {
+          "name": "Block User",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/users/{{studentId}}/block",
+            "description": "Admin only. The user can no longer log in and existing tokens are rejected. Admins cannot block themselves. Run Unblock User afterwards to keep using studentToken."
+          }
+        },
+        {
+          "name": "Unblock User",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/users/{{studentId}}/unblock",
+            "description": "Admin only. Sets status back to approved."
           }
         }
       ]
@@ -205,140 +248,266 @@
       "name": "Courses",
       "item": [
         {
-          "name": "Create Course - Admin (published, with files)",
-          "event": [
+          "name": "Create",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
-            },
-            "url": "{{baseUrl}}/cources/admin",
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "instructorId", "value": "{{instructorId}}", "type": "text" },
-                { "key": "title", "value": "JS Basics", "type": "text" },
-                { "key": "description", "value": "Full introduction course to JavaScript", "type": "text" },
-                { "key": "price", "value": "100", "type": "text" },
-                { "key": "durationDays", "value": "30", "type": "text" },
+              "name": "Create Course - Admin (with files)",
+              "event": [
                 {
-                  "key": "lectures",
-                  "value": "[{\"title\":\"Intro\",\"fileIndex\":0},{\"title\":\"Variables\",\"fileIndex\":1},{\"title\":\"Functions\"}]",
-                  "type": "text"
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
                 },
+                "url": "{{baseUrl}}/cources/admin",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "instructorId", "value": "{{instructorId}}", "type": "text" },
+                    { "key": "title", "value": "JS Basics", "type": "text" },
+                    { "key": "description", "value": "Full introduction course to JavaScript", "type": "text" },
+                    { "key": "price", "value": "100", "type": "text" },
+                    { "key": "durationDays", "value": "30", "type": "text" },
+                    {
+                      "key": "lectures",
+                      "value": "[{\"title\":\"Intro\",\"fileIndex\":0},{\"title\":\"Variables\",\"fileIndex\":1},{\"title\":\"Functions\"}]",
+                      "type": "text"
+                    },
+                    {
+                      "key": "fullQuiz",
+                      "value": "{\"title\":\"Final Quiz\",\"questions\":[{\"question\":\"What is JS?\",\"choices\":[\"Language\",\"Framework\",\"Database\"],\"correctAnswer\":\"Language\",\"points\":2}]}",
+                      "type": "text"
+                    },
+                    { "key": "certificateTemplate", "value": "", "type": "text" },
+                    { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 1 file (fileIndex 0)" },
+                    { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 2 file (fileIndex 1)" }
+                  ]
+                },
+                "description": "Admin only. Created as published. Choose the lecture files before sending. Saves courseId."
+              }
+            },
+            {
+              "name": "Create Course - Admin (JSON)",
+              "event": [
                 {
-                  "key": "fullQuiz",
-                  "value": "{\"title\":\"Final Quiz\",\"questions\":[{\"question\":\"What is JS?\",\"choices\":[\"Language\",\"Framework\",\"Database\"],\"correctAnswer\":\"Language\",\"points\":2}]}",
-                  "type": "text"
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
                 },
-                { "key": "certificateTemplate", "value": "", "type": "text" },
-                { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 1 file (fileIndex 0) - choose a video/file" },
-                { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 2 file (fileIndex 1) - choose a video/file" }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Create Course - Admin (titles only, JSON)",
-          "event": [
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "url": "{{baseUrl}}/cources/admin",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"instructorId\": \"{{instructorId}}\",\n  \"title\": \"Node.js Course\",\n  \"description\": \"Backend development with Node.js\",\n  \"price\": 150,\n  \"durationDays\": 45,\n  \"lectures\": [\n    { \"title\": \"Intro to Node\" },\n    { \"title\": \"Express\", \"lectureLink\": \"https://example.com/express\" }\n  ]\n}"
+                },
+                "description": "Admin only. Created as published, no file uploads. Saves courseId."
+              }
+            },
             {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
-                ]
+              "name": "Create Course - Instructor (with file)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/cources/instructor",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "title", "value": "React Course", "type": "text" },
+                    { "key": "description", "value": "Frontend development with React", "type": "text" },
+                    { "key": "price", "value": "200", "type": "text" },
+                    { "key": "durationDays", "value": "60", "type": "text" },
+                    { "key": "lectures", "value": "[{\"title\":\"Intro to React\",\"fileIndex\":0},{\"title\":\"Hooks\"}]", "type": "text" },
+                    { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 1 file (fileIndex 0)" }
+                  ]
+                },
+                "description": "Instructor only. Created as waiting until an admin publishes it. Saves courseId."
+              }
+            },
+            {
+              "name": "Create Course - Instructor (JSON)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
+                },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "url": "{{baseUrl}}/cources/instructor",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Python Course\",\n  \"description\": \"Python programming from scratch\",\n  \"price\": 120,\n  \"durationDays\": 30\n}"
+                },
+                "description": "Instructor only. Created as waiting. Saves courseId."
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
-            },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{baseUrl}}/cources/admin",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"instructorId\": \"{{instructorId}}\",\n  \"title\": \"Node.js Course\",\n  \"description\": \"Backend development with Node.js\",\n  \"price\": 150,\n  \"durationDays\": 45,\n  \"lectures\": [\n    { \"title\": \"Intro to Node\" },\n    { \"title\": \"Express\", \"lectureLink\": \"https://example.com/express\" }\n  ]\n}"
-            }
-          }
+          ]
         },
         {
-          "name": "Create Course - Instructor (waiting, with file)",
-          "event": [
+          "name": "Browse",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
-                ]
+              "name": "List Courses (public)",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/cources?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["cources"],
+                  "query": [
+                    { "key": "search", "value": "javascript", "description": "Matches title or description", "disabled": true },
+                    { "key": "minPrice", "value": "0", "disabled": true },
+                    { "key": "maxPrice", "value": "200", "disabled": true },
+                    { "key": "page", "value": "1", "description": "Default 1" },
+                    { "key": "limit", "value": "20", "description": "Default 20, max 100" }
+                  ]
+                },
+                "description": "Public. Published courses only, without lecture links or quiz questions."
+              }
+            },
+            {
+              "name": "List Courses (admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "const courses = (res.data && res.data.courses) || [];",
+                      "const course = courses.find((c) => c.status === 'published' && c.lectures.length) || courses[0];",
+                      "if (course) {",
+                      "  pm.collectionVariables.set('courseId', course._id);",
+                      "  if (course.lectures[0]) pm.collectionVariables.set('lectureId', course.lectures[0]._id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/cources/admin?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["cources", "admin"],
+                  "query": [
+                    { "key": "search", "value": "JavaScript Basics", "disabled": true },
+                    { "key": "status", "value": "waiting", "description": "waiting | published | draft", "disabled": true },
+                    { "key": "instructorId", "value": "{{instructorId}}", "disabled": true },
+                    { "key": "page", "value": "1", "description": "Default 1" },
+                    { "key": "limit", "value": "20", "description": "Default 20, max 100" }
+                  ]
+                },
+                "description": "Admin only. Full course data, instructor, and stats (activeStudents, totalStudents, accessCodes, pendingRequests). Saves courseId / lectureId from the first published course that has lectures."
+              }
+            },
+            {
+              "name": "Get Course By Id",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/cources/{{courseId}}",
+                "description": "Admin, the course's own instructor, or a student with an active subscription to it (403 otherwise). Structure only: lectures and quiz titles, no links, questions, or answers."
+              }
+            },
+            {
+              "name": "Get Lecture",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/cources/{{courseId}}/lectures/{{lectureId}}",
+                "description": "Same access as Get Course By Id. Returns lectureLink and quiz questions. correctAnswer is only included for admin and the course's own instructor."
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
-            },
-            "url": "{{baseUrl}}/cources/instructor",
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                { "key": "title", "value": "React Course", "type": "text" },
-                { "key": "description", "value": "Frontend development with React", "type": "text" },
-                { "key": "price", "value": "200", "type": "text" },
-                { "key": "durationDays", "value": "60", "type": "text" },
-                { "key": "lectures", "value": "[{\"title\":\"Intro to React\",\"fileIndex\":0},{\"title\":\"Hooks\"}]", "type": "text" },
-                { "key": "lectureFiles", "type": "file", "src": [], "description": "Lecture 1 file (fileIndex 0)" }
-              ]
-            }
-          }
+          ]
         },
         {
-          "name": "Create Course - Instructor (empty, JSON)",
-          "event": [
+          "name": "Review (admin)",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) pm.collectionVariables.set('courseId', res.data._id);"
-                ]
+              "name": "Publish Course",
+              "request": {
+                "method": "PATCH",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/cources/{{courseId}}/publish",
+                "description": "Admin only. waiting -> published. Returns 400 if the course is not waiting."
+              }
+            },
+            {
+              "name": "Unpublish Course",
+              "request": {
+                "method": "PATCH",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/cources/{{courseId}}/unpublish",
+                "description": "Admin only. published -> draft. Returns 400 if the course is not published."
               }
             }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "bearer",
-              "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
-            },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "url": "{{baseUrl}}/cources/instructor",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Python Course\",\n  \"description\": \"Python programming from scratch\",\n  \"price\": 120,\n  \"durationDays\": 30\n}"
-            }
-          }
+          ]
         }
       ]
     },
@@ -346,7 +515,7 @@
       "name": "Access Codes",
       "item": [
         {
-          "name": "Generate Codes (admin)",
+          "name": "Generate Codes",
           "request": {
             "method": "POST",
             "auth": {
@@ -358,7 +527,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"count\": 5\n}"
-            }
+            },
+            "description": "Admin only. Approving a request needs at least one available code for its course."
           }
         }
       ]
@@ -367,7 +537,7 @@
       "name": "Requests",
       "item": [
         {
-          "name": "Create Request (student)",
+          "name": "Create Request",
           "event": [
             {
               "listen": "test",
@@ -393,11 +563,25 @@
                 { "key": "courseId", "value": "{{courseId}}", "type": "text" },
                 { "key": "paymentDoc", "type": "file", "src": [], "description": "PDF / JPEG / PNG / WebP, max 5MB" }
               ]
-            }
+            },
+            "description": "Student only. Choose the payment document before sending. Returns 409 if the student already has a pending request for this course. Saves requestId."
           }
         },
         {
-          "name": "List Requests (admin)",
+          "name": "List Requests",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "const request = Array.isArray(res.data) && res.data[0];",
+                  "if (request) pm.collectionVariables.set('requestId', request._id);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "auth": {
@@ -415,7 +599,8 @@
                   "description": "approved | rejected | waiting_for_review | waiting_for_correction"
                 }
               ]
-            }
+            },
+            "description": "Admin only. Saves the first result's id into requestId."
           }
         },
         {
@@ -426,44 +611,48 @@
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
             },
-            "url": "{{baseUrl}}/requests/{{requestId}}"
+            "url": "{{baseUrl}}/requests/{{requestId}}",
+            "description": "Admin or the student who owns the request."
           }
         },
         {
-          "name": "Approve Request (admin)",
+          "name": "Approve Request",
           "request": {
             "method": "PATCH",
             "auth": {
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
             },
-            "url": "{{baseUrl}}/requests/{{requestId}}/approve"
+            "url": "{{baseUrl}}/requests/{{requestId}}/approve",
+            "description": "Admin only. Request must be waiting_for_review. Assigns an available access code and creates an active subscription (409 if the course has no available codes)."
           }
         },
         {
-          "name": "Reject Request (admin)",
+          "name": "Reject Request",
           "request": {
             "method": "PATCH",
             "auth": {
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
             },
-            "url": "{{baseUrl}}/requests/{{requestId}}/reject"
+            "url": "{{baseUrl}}/requests/{{requestId}}/reject",
+            "description": "Admin only. Request must be waiting_for_review."
           }
         },
         {
-          "name": "Return Request For Correction (admin)",
+          "name": "Return Request For Correction",
           "request": {
             "method": "PATCH",
             "auth": {
               "type": "bearer",
               "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
             },
-            "url": "{{baseUrl}}/requests/{{requestId}}/return"
+            "url": "{{baseUrl}}/requests/{{requestId}}/return",
+            "description": "Admin only. Request must be waiting_for_review. Moves it to waiting_for_correction."
           }
         },
         {
-          "name": "Update Request (student)",
+          "name": "Resubmit Request",
           "request": {
             "method": "PATCH",
             "auth": {
@@ -474,10 +663,29 @@
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "courseId", "value": "{{courseId}}", "type": "text" },
+                { "key": "courseId", "value": "{{courseId}}", "type": "text", "disabled": true },
                 { "key": "paymentDoc", "type": "file", "src": [], "description": "Optional new payment document" }
               ]
-            }
+            },
+            "description": "The student who owns the request. Request must be waiting_for_correction. Moves it back to waiting_for_review."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "description": "Destructive requests. Run these last.",
+      "item": [
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/users/{{studentId}}",
+            "description": "The user themself or an admin. Deletes studentId; run `npm run seed` to recreate the seeded student."
           }
         }
       ]
