@@ -5,7 +5,8 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Notice, type NoticeState } from "@/components/ui/notice";
-import { fetchRequests, getPaymentDocUrl, runRequestAction } from "@/features/requests/api";
+import { fetchRequests, runRequestAction } from "@/features/requests/api";
+import { PaymentDocViewer } from "@/features/requests/components/payment-doc-viewer";
 import { REQUEST_ACTION_META, REQUEST_STATUS_META } from "@/features/requests/format";
 import {
   REQUEST_STATUSES,
@@ -33,6 +34,7 @@ export function AdminRequestsPage() {
     action: RequestAction;
   } | null>(null);
   const [notice, setNotice] = useState<NoticeState>(null);
+  const [viewing, setViewing] = useState<EnrollmentRequest | null>(null);
 
   const requestsQuery = useQuery({
     queryKey: ["requests", tab],
@@ -182,14 +184,13 @@ export function AdminRequestsPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <a
-                          href={getPaymentDocUrl(request.paymentDoc)}
-                          target="_blank"
-                          rel="noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => setViewing(request)}
                           className="whitespace-nowrap text-sm font-medium text-sky-700 hover:underline"
                         >
                           View document
-                        </a>
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         <Badge className={statusMeta.className}>{statusMeta.label}</Badge>
@@ -237,6 +238,8 @@ export function AdminRequestsPage() {
           </div>
         )}
       </div>
+
+      {viewing ? <PaymentDocViewer request={viewing} onClose={() => setViewing(null)} /> : null}
 
       {pendingAction ? (
         <ConfirmModal

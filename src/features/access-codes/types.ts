@@ -1,16 +1,54 @@
-export type AccessCode = {
+import type { Pagination } from "@/features/users/types";
+import type { CourseStatus } from "@/features/users/types";
+import type { SubscriptionStatus } from "@/features/subscriptions/types";
+
+export type AccessCodeStatus = "available" | "used";
+
+export type GeneratedAccessCode = {
   _id: string;
   code: string;
   courseId: string;
-  studentId: string | null;
-  status: "available" | "used";
+  status: AccessCodeStatus;
   createdAt: string;
 };
 
-export type AccessCodeBatch = {
-  id: string;
-  courseId: string;
-  courseTitle: string | null;
+export type ListedAccessCode = {
+  _id: string;
+  code: string;
+  status: AccessCodeStatus;
+  course: {
+    _id: string;
+    title: string;
+    status: CourseStatus;
+    price: number;
+  } | null;
+  student: {
+    _id: string;
+    fullname: string;
+    username: string;
+    email: string;
+  } | null;
+  subscription: {
+    _id: string;
+    status: SubscriptionStatus;
+    startAt: string;
+    endAt: string;
+  } | null;
   createdAt: string;
-  codes: string[];
+  updatedAt: string;
+};
+
+export type AccessCodesQuery = {
+  status?: AccessCodeStatus;
+  courseId?: string;
+  studentId?: string;
+  search?: string;
+  page: number;
+  limit: number;
+};
+
+export type AccessCodesResult = {
+  summary: { total: number; available: number; used: number };
+  codes: ListedAccessCode[];
+  pagination: Pagination;
 };

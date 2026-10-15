@@ -1,5 +1,6 @@
 import { API_URL } from "@/lib/env";
 import { getAdminToken } from "@/lib/auth";
+import { endSession, type SessionEndReason } from "@/lib/session";
 
 export class ApiError extends Error {
   status: number;
@@ -24,6 +25,37 @@ function extractErrorMessage(status: number, body: unknown) {
     if (typeof message === "string" && message) return message;
   }
   return `API error: ${status}`;
+}
+
+const UNAUTHORIZED_MESSAGE = "You are not allowed to perform this action.";
+
+const SESSION_END_MESSAGES: Record<SessionEndReason, string> = {
+  expired: "Your session has expired. Please sign in again.",
+  unapproved: "Your account is no longer approved.",
+};
+
+function resolveAuthError(path: string, status: number, message: string, sentToken: boolean) {
+  if (path === "/users/login") return message;
+
+  if (status === 401 && sentToken) {
+    const reason: SessionEndReason = message === "User no longer exists" ? "unapproved" : "expired";
+    endSession(reason);
+    return SESSION_END_MESSAGES[reason];
+  }
+
+  if (status === 403 && message === "Account is not approved") {
+    endSession("unapproved");
+    return SESSION_END_MESSAGES.unapproved;
+  }
+
+  if (
+    status === 403 &&
+    (message === "Forbidden" || message === "Not allowed to access this user")
+  ) {
+    return UNAUTHORIZED_MESSAGE;
+  }
+
+  return message;
 }
 
 export async function apiFetch<T>(
@@ -53,7 +85,10 @@ export async function apiFetch<T>(
     } catch {
       // ignore JSON parse failures
     }
-    throw new ApiError(response.status, extractErrorMessage(response.status, body));
+    throw new ApiError(
+      response.status,
+      resolveAuthError(path, response.status, extractErrorMessage(response.status, body), Boolean(token))
+    );
   }
 
   return response.json() as Promise<T>;
@@ -94,7 +129,12 @@ export function apiUpload<T>(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(parsed as T);
       } else {
-        reject(new ApiError(xhr.status, extractErrorMessage(xhr.status, parsed)));
+        reject(
+          new ApiError(
+            xhr.status,
+            resolveAuthError(path, xhr.status, extractErrorMessage(xhr.status, parsed), Boolean(token))
+          )
+        );
       }
     };
 

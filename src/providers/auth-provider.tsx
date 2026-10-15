@@ -2,10 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { AdminUser } from "@/features/admin/types";
 import {
   clearAdminSession,
@@ -15,6 +17,8 @@ import {
   setAdminToken,
   setAdminUser,
 } from "@/lib/auth";
+import { setSessionEndHandler } from "@/lib/session";
+import { router } from "@/router";
 
 type LoginSession = {
   token: string;
@@ -37,6 +41,7 @@ type AuthProviderProps = {
 };
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const [token, setToken] = useState<string | null>(() => getAdminToken());
   const [user, setUser] = useState<AdminUser | null>(() => getAdminUser());
 
@@ -63,6 +68,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setToken(null);
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    setSessionEndHandler((reason) => {
+      logout();
+      queryClient.clear();
+      void router.navigate({ to: "/admin/login", search: { reason }, replace: true });
+    });
+    return () => setSessionEndHandler(null);
+  }, [logout, queryClient]);
 
   const value = useMemo(
     () => ({

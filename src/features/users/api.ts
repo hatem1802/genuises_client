@@ -1,21 +1,25 @@
-import { apiFetch } from "@/lib/api";
-import { buildMockUserDetails } from "@/features/users/mock-details";
+import { ApiError, apiFetch } from "@/lib/api";
 import type {
   ApiResponse,
   CreateAdminInput,
   UpdateUserInput,
   User,
-  UserDetails,
   UsersListResult,
   UsersQuery,
 } from "@/features/users/types";
 
-export const USER_DETAILS_IS_MOCK = true;
+export async function fetchUserById(id: string) {
+  let page = 1;
 
-// TODO: replace with apiFetch(`/users/${id}/details`) once the server endpoint exists.
-export async function fetchUserDetails(id: string, knownUser?: User): Promise<UserDetails> {
-  await new Promise((resolve) => window.setTimeout(resolve, 300));
-  return buildMockUserDetails(id, knownUser);
+  for (;;) {
+    const result = await fetchUsers({ page, limit: 100 });
+    const user = result.users.find((item) => item._id === id);
+    if (user) return user;
+    if (page >= result.pagination.pages) break;
+    page += 1;
+  }
+
+  throw new ApiError(404, "User not found");
 }
 
 export async function fetchUsers(query: UsersQuery) {

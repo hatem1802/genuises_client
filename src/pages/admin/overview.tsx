@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { DashboardCharts } from "@/features/analytics/dashboard-charts";
 
 const sections = [
   {
@@ -18,6 +19,11 @@ const sections = [
     description: "Manage admins, instructors, and students.",
   },
   {
+    to: "/admin/subscriptions",
+    title: "Subscriptions",
+    description: "Review enrollments, access codes, and student progress.",
+  },
+  {
     to: "/admin/packages",
     title: "Packages",
     description: "Manage course packages and bundles.",
@@ -34,9 +40,12 @@ export function AdminOverviewPage() {
     <div>
       <AdminPageHeader
         title="Dashboard"
-        description="Overview of the admin control panel."
+        description="Platform analytics for students, courses, subscriptions, and requests."
       />
 
+      <DashboardCharts />
+
+      <h3 className="mb-3 mt-8 text-base font-semibold text-slate-900">Manage</h3>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {sections.map((section) => (
           <Link
