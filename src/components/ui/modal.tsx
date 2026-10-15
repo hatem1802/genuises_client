@@ -4,9 +4,15 @@ type ModalProps = {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  size?: "md" | "xl";
 };
 
-export function Modal({ title, onClose, children }: ModalProps) {
+const SIZE_CLASS_NAME = {
+  md: "max-w-lg",
+  xl: "max-w-5xl",
+};
+
+export function Modal({ title, onClose, children, size = "md" }: ModalProps) {
   const titleId = useId();
 
   useEffect(() => {
@@ -27,7 +33,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-xl bg-white shadow-xl"
+        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl ${SIZE_CLASS_NAME[size]}`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -43,7 +49,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
             ×
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-auto px-6 py-5">{children}</div>
       </div>
     </div>
   );

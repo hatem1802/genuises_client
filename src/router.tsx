@@ -9,6 +9,16 @@ import {
 import { PageLoader } from "@/components/ui/page-loader";
 import { isAdminAuthenticated } from "@/lib/auth";
 
+type LoginSearch = {
+  reason?: "expired" | "unapproved";
+};
+
+type SubscriptionsSearch = {
+  studentId?: string;
+  courseId?: string;
+  instructorId?: string;
+};
+
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
 });
@@ -26,6 +36,9 @@ const indexRoute = createRoute({
 const adminLoginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/login",
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    reason: search.reason === "expired" || search.reason === "unapproved" ? search.reason : undefined,
+  }),
   beforeLoad: () => {
     if (isAdminAuthenticated()) {
       throw redirect({ to: "/admin" });
@@ -78,6 +91,20 @@ const adminRequestsRoute = createRoute({
   component: lazyRouteComponent(() => import("@/pages/admin/requests"), "AdminRequestsPage"),
 });
 
+const adminSubscriptionsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/subscriptions",
+  validateSearch: (search: Record<string, unknown>): SubscriptionsSearch => ({
+    studentId: typeof search.studentId === "string" ? search.studentId : undefined,
+    courseId: typeof search.courseId === "string" ? search.courseId : undefined,
+    instructorId: typeof search.instructorId === "string" ? search.instructorId : undefined,
+  }),
+  component: lazyRouteComponent(
+    () => import("@/pages/admin/subscriptions"),
+    "AdminSubscriptionsPage"
+  ),
+});
+
 const adminUsersRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/users",
@@ -126,6 +153,7 @@ const routeTree = rootRoute.addChildren([
     adminCourseNewRoute,
     adminCourseDetailsRoute,
     adminRequestsRoute,
+    adminSubscriptionsRoute,
     adminUsersRoute,
     adminUserDetailsRoute,
     adminPackagesRoute,

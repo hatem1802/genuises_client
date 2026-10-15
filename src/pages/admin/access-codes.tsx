@@ -1,20 +1,33 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSearch } from "@tanstack/react-router";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearch } from "@tanstack/react-router";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { Badge } from "@/components/ui/badge";
 import { Field, FormError, inputClassName } from "@/components/ui/form";
 import { Notice, type NoticeState } from "@/components/ui/notice";
-import {
-  downloadBatchCsv,
-  generateAccessCodes,
-  getSavedBatches,
-  saveBatches,
-} from "@/features/access-codes/api";
-import type { AccessCodeBatch } from "@/features/access-codes/types";
+import { downloadCodesCsv, fetchAccessCodes, generateAccessCodes } from "@/features/access-codes/api";
+import type { AccessCodeStatus, GeneratedAccessCode } from "@/features/access-codes/types";
 import { useCourseOptions } from "@/features/courses/use-course-options";
+import { SUBSCRIPTION_STATUS_META, formatDay } from "@/features/subscriptions/format";
+import { fetchUsers } from "@/features/users/api";
 import { formatDate } from "@/features/users/format";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
+const PAGE_SIZE = 10;
 const OBJECT_ID_PATTERN = /^[a-f0-9]{24}$/i;
+
+const STATUS_META: Record<AccessCodeStatus, { label: string; className: string }> = {
+  available: { label: "Available", className: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+  used: { label: "Used", className: "bg-slate-100 text-slate-600 ring-slate-200" },
+};
+
+type Tab = AccessCodeStatus | "all";
+
+const TABS: { value: Tab; label: string; countKey: "total" | "available" | "used" }[] = [
+  { value: "all", label: "All", countKey: "total" },
+  { value: "available", label: "Available", countKey: "available" },
+  { value: "used", label: "Used", countKey: "used" },
+];
 
 const smallButtonClassName =
   "rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50";
@@ -24,37 +37,59 @@ async function copyText(text: string) {
 }
 
 export function AdminAccessCodesPage() {
-  const search = useSearch({ from: "/admin/access-codes" });
+  const searchParams = useSearch({ from: "/admin/access-codes" });
   const queryClient = useQueryClient();
-  const { courses, isLoading, error: coursesError } = useCourseOptions();
-  const [courseId, setCourseId] = useState(search.courseId ?? "");
+  const { courses, isLoading: coursesLoading, error: coursesError } = useCourseOptions();
+
+  const [courseId, setCourseId] = useState(searchParams.courseId ?? "");
   const [manualEntry, setManualEntry] = useState(false);
   const [count, setCount] = useState("10");
   const [formError, setFormError] = useState<string | null>(null);
-  const [batches, setBatches] = useState<AccessCodeBatch[]>(getSavedBatches);
+  const [latestBatch, setLatestBatch] = useState<GeneratedAccessCode[] | null>(null);
+
+  const [tab, setTab] = useState<Tab>("all");
+  const [filterCourseId, setFilterCourseId] = useState(searchParams.courseId ?? "");
+  const [studentId, setStudentId] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [notice, setNotice] = useState<NoticeState>(null);
+  const debouncedSearch = useDebouncedValue(search.trim());
 
   const selectedKnownCourse = courses.find((course) => course._id === courseId);
-  const isUnknownPreselected = Boolean(courseId) && !selectedKnownCourse && !isLoading;
+  const isUnknownPreselected = Boolean(courseId) && !selectedKnownCourse && !coursesLoading;
   const showManualInput = manualEntry || isUnknownPreselected;
 
-  function updateBatches(next: AccessCodeBatch[]) {
-    setBatches(next);
-    saveBatches(next);
-  }
+  const listQuery = {
+    status: tab === "all" ? undefined : tab,
+    courseId: filterCourseId || undefined,
+    studentId: studentId || undefined,
+    search: debouncedSearch || undefined,
+    page,
+    limit: PAGE_SIZE,
+  };
+
+  const codesQuery = useQuery({
+    queryKey: ["access-codes", listQuery],
+    queryFn: () => fetchAccessCodes(listQuery),
+    placeholderData: keepPreviousData,
+  });
+
+  const studentsQuery = useQuery({
+    queryKey: ["users", "student-options"],
+    queryFn: () => fetchUsers({ role: "student", page: 1, limit: 100 }),
+  });
 
   const mutation = useMutation({
     mutationFn: generateAccessCodes,
-    onSuccess: (codes, variables) => {
-      const batch: AccessCodeBatch = {
-        id: crypto.randomUUID(),
-        courseId: variables.courseId,
-        courseTitle: courses.find((course) => course._id === variables.courseId)?.title ?? null,
-        createdAt: new Date().toISOString(),
-        codes: codes.map((item) => item.code),
-      };
-      updateBatches([batch, ...batches]);
-      void queryClient.invalidateQueries({ queryKey: ["courses"] });
+    onSuccess: async (codes) => {
+      setLatestBatch(codes);
+      setTab("available");
+      setFilterCourseId(courseId.trim());
+      setPage(1);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["access-codes"] }),
+        queryClient.invalidateQueries({ queryKey: ["courses"] }),
+      ]);
       setNotice({ tone: "success", message: `${codes.length} access codes were generated.` });
     },
   });
@@ -86,11 +121,17 @@ export function AdminAccessCodesPage() {
     }
   }
 
+  const codes = codesQuery.data?.codes ?? [];
+  const summary = codesQuery.data?.summary;
+  const pagination = codesQuery.data?.pagination;
+  const totalPages = Math.max(1, pagination?.pages ?? 1);
+  const hasFilters = Boolean(filterCourseId || studentId || search);
+
   return (
     <div>
       <AdminPageHeader
         title="Access Codes"
-        description="Generate access codes for a course. Approving a student request uses one available code."
+        description="Generate codes and see which ones are still available or already assigned to a student."
       />
 
       <Notice notice={notice} onDismiss={() => setNotice(null)} />
@@ -116,11 +157,11 @@ export function AdminAccessCodesPage() {
               <select
                 value={courseId}
                 onChange={(event) => setCourseId(event.target.value)}
-                disabled={isLoading && courses.length === 0}
+                disabled={coursesLoading && courses.length === 0}
                 className={inputClassName}
               >
                 <option value="">
-                  {isLoading && courses.length === 0 ? "Loading courses…" : "Select a course"}
+                  {coursesLoading && courses.length === 0 ? "Loading courses…" : "Select a course"}
                 </option>
                 {courses.map((course) => (
                   <option key={course._id} value={course._id}>
@@ -151,11 +192,7 @@ export function AdminAccessCodesPage() {
           <p className="text-sm text-slate-600">
             <span className="font-medium text-slate-900">{selectedKnownCourse.title}</span> currently
             has {selectedKnownCourse.stats.accessCodes.available} available and{" "}
-            {selectedKnownCourse.stats.accessCodes.used} used codes
-            {selectedKnownCourse.stats.pendingRequests > 0
-              ? `, with ${selectedKnownCourse.stats.pendingRequests} pending requests`
-              : ""}
-            .
+            {selectedKnownCourse.stats.accessCodes.used} used codes.
           </p>
         ) : null}
 
@@ -183,73 +220,270 @@ export function AdminAccessCodesPage() {
         </div>
       </form>
 
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-slate-900">Generated batches</h3>
-      </div>
-      <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-        The server has no endpoint to list existing codes yet, so batches generated here are kept in
-        this browser only. Download or copy them before clearing browser data.
-      </p>
+      {latestBatch ? (
+        <section className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="font-semibold text-emerald-900">
+              Latest batch · {latestBatch.length} codes
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => void handleCopy(latestBatch.map((item) => item.code).join("\n"), "All codes")}
+                className={smallButtonClassName}
+              >
+                Copy all
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadCodesCsv(`access-codes-${new Date().toISOString().slice(0, 10)}.csv`, latestBatch.map((item) => ({
+                    code: item.code,
+                    course: selectedKnownCourse?.title ?? item.courseId,
+                  })))
+                }
+                className={smallButtonClassName}
+              >
+                Download CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => setLatestBatch(null)}
+                className={smallButtonClassName}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {latestBatch.map((item) => (
+              <button
+                key={item._id}
+                type="button"
+                onClick={() => void handleCopy(item.code, `Code ${item.code}`)}
+                title="Click to copy"
+                className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-left font-mono text-sm tracking-wider text-slate-800 transition hover:border-emerald-300"
+              >
+                {item.code}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-      {batches.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
-          No codes generated from this browser yet.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {batches.map((batch) => (
-            <section key={batch.id} className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-900">
-                    {batch.courseTitle ?? "Course"}{" "}
-                    <span className="font-normal text-slate-500">· {batch.codes.length} codes</span>
-                  </p>
-                  <p className="font-mono text-xs text-slate-500">{batch.courseId}</p>
-                  <p className="text-xs text-slate-500">Generated {formatDate(batch.createdAt)}</p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void handleCopy(batch.codes.join("\n"), "All codes")}
-                    className={smallButtonClassName}
-                  >
-                    Copy all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => downloadBatchCsv(batch)}
-                    className={smallButtonClassName}
-                  >
-                    Download CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateBatches(batches.filter((item) => item.id !== batch.id))}
-                    className={`${smallButtonClassName} border-red-300 text-red-700 hover:bg-red-50`}
-                  >
-                    Remove from list
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                {batch.codes.map((code) => (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() => void handleCopy(code, `Code ${code}`)}
-                    title="Click to copy"
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left font-mono text-sm tracking-wider text-slate-800 transition hover:border-slate-300 hover:bg-white"
-                  >
-                    {code}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
+      <div className="rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-wrap gap-1 border-b border-slate-200 px-4 pt-3">
+          {TABS.map((item) => {
+            const countValue = summary?.[item.countKey];
+            return (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => {
+                  setTab(item.value);
+                  setPage(1);
+                }}
+                className={`-mb-px flex items-center gap-2 border-b-2 px-3 pb-2.5 text-sm font-medium transition ${
+                  tab === item.value
+                    ? "border-slate-900 text-slate-900"
+                    : "border-transparent text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {item.label}
+                {countValue !== undefined ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    {countValue}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value);
+              setPage(1);
+            }}
+            placeholder="Search by code"
+            className={inputClassName}
+          />
+          <select
+            value={filterCourseId}
+            onChange={(event) => {
+              setFilterCourseId(event.target.value);
+              setPage(1);
+            }}
+            className={inputClassName}
+          >
+            <option value="">All courses</option>
+            {courses.map((course) => (
+              <option key={course._id} value={course._id}>
+                {course.title}
+              </option>
+            ))}
+          </select>
+          <select
+            value={studentId}
+            onChange={(event) => {
+              setStudentId(event.target.value);
+              setPage(1);
+            }}
+            className={inputClassName}
+          >
+            <option value="">All students</option>
+            {(studentsQuery.data?.users ?? []).map((student) => (
+              <option key={student._id} value={student._id}>
+                {student.fullname}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!hasFilters}
+            onClick={() => {
+              setSearch("");
+              setFilterCourseId("");
+              setStudentId("");
+              setPage(1);
+            }}
+            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Clear
+          </button>
+        </div>
+
+        {codesQuery.isPending ? (
+          <p className="px-6 py-16 text-center text-sm text-slate-500">Loading access codes…</p>
+        ) : codesQuery.isError ? (
+          <div className="px-6 py-16 text-center">
+            <p className="text-sm text-red-700">{codesQuery.error.message}</p>
+            <button
+              type="button"
+              onClick={() => void codesQuery.refetch()}
+              className="mt-3 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              Try again
+            </button>
+          </div>
+        ) : codes.length === 0 ? (
+          <p className="px-6 py-16 text-center text-sm text-slate-500">
+            {hasFilters ? "No access codes match these filters." : "No access codes yet."}
+          </p>
+        ) : (
+          <div className={`overflow-x-auto ${codesQuery.isFetching ? "opacity-60 transition" : "transition"}`}>
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">Code</th>
+                  <th className="px-4 py-3">Course</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Student</th>
+                  <th className="px-4 py-3">Subscription</th>
+                  <th className="px-4 py-3">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {codes.map((item) => {
+                  const statusMeta = STATUS_META[item.status];
+                  return (
+                    <tr key={item._id} className="align-top">
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => void handleCopy(item.code, `Code ${item.code}`)}
+                          title="Click to copy"
+                          className="font-mono text-sm tracking-wider text-slate-900 hover:text-sky-700"
+                        >
+                          {item.code}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.course ? (
+                          <Link
+                            to="/admin/courses/$courseId"
+                            params={{ courseId: item.course._id }}
+                            className="font-medium text-slate-900 hover:text-sky-700 hover:underline"
+                          >
+                            {item.course.title}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-400">Deleted course</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge className={statusMeta.className}>{statusMeta.label}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.student ? (
+                          <>
+                            <Link
+                              to="/admin/users/$userId"
+                              params={{ userId: item.student._id }}
+                              className="font-medium text-slate-900 hover:text-sky-700 hover:underline"
+                            >
+                              {item.student.fullname}
+                            </Link>
+                            <p className="text-xs text-slate-500">{item.student.email}</p>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {item.subscription ? (
+                          <>
+                            <Badge className={SUBSCRIPTION_STATUS_META[item.subscription.status].className}>
+                              {SUBSCRIPTION_STATUS_META[item.subscription.status].label}
+                            </Badge>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {formatDay(item.subscription.startAt)} – {formatDay(item.subscription.endAt)}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+                        {formatDate(item.createdAt)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {pagination && pagination.total > 0 ? (
+          <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+            <span>
+              Page {pagination.page} of {totalPages} · {pagination.total} codes
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((current) => current - 1)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((current) => current + 1)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

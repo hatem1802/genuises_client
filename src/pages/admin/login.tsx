@@ -1,19 +1,21 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { loginAdmin } from "@/features/admin/api";
 import { useAuth } from "@/providers/auth-provider";
+import { isAdminAuthenticated } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const { isAuthenticated, loginSuccess } = useAuth();
+  const { reason } = useSearch({ from: "/admin/login" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !isAdminAuthenticated()) return;
     void navigate({ to: "/admin", replace: true });
   }, [isAuthenticated, navigate]);
 
@@ -49,6 +51,17 @@ export function AdminLoginPage() {
             Sign in with your admin account to access the dashboard.
           </p>
         </div>
+
+        {reason ? (
+          <p
+            role="status"
+            className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+          >
+            {reason === "unapproved"
+              ? "Your account is no longer approved. Please contact an administrator."
+              : "Your session has expired. Please sign in again."}
+          </p>
+        ) : null}
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-1.5">

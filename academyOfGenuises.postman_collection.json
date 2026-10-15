@@ -13,7 +13,11 @@
     { "key": "studentId", "value": "" },
     { "key": "courseId", "value": "" },
     { "key": "lectureId", "value": "" },
-    { "key": "requestId", "value": "" }
+    { "key": "quizId", "value": "" },
+    { "key": "questionId", "value": "" },
+    { "key": "requestId", "value": "" },
+    { "key": "accessCodeId", "value": "" },
+    { "key": "subscriptionId", "value": "" }
   ],
   "item": [
     {
@@ -456,6 +460,24 @@
             },
             {
               "name": "Get Course By Id",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "const course = res.data;",
+                      "if (course && course.lectures) {",
+                      "  if (course.lectures[0]) pm.collectionVariables.set('lectureId', course.lectures[0]._id);",
+                      "  const lectureQuiz = course.lectures.flatMap((l) => l.quizzes)[0];",
+                      "  const quiz = lectureQuiz || course.fullQuiz;",
+                      "  if (quiz) pm.collectionVariables.set('quizId', quiz._id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
               "request": {
                 "method": "GET",
                 "auth": {
@@ -463,7 +485,7 @@
                   "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
                 },
                 "url": "{{baseUrl}}/cources/{{courseId}}",
-                "description": "Admin, the course's own instructor, or a student with an active subscription to it (403 otherwise). Structure only: lectures and quiz titles, no links, questions, or answers."
+                "description": "Admin, the course's own instructor, or a student with an active subscription to it (403 otherwise). Structure only: lectures and quiz titles, no links, questions, or answers. For students it also returns each lecture/quiz status, quiz scores, and overall progress, and syncs any lectures/quizzes added after enrollment. Saves lectureId and quizId."
               }
             },
             {
@@ -475,7 +497,50 @@
                   "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
                 },
                 "url": "{{baseUrl}}/cources/{{courseId}}/lectures/{{lectureId}}",
-                "description": "Same access as Get Course By Id. Returns lectureLink and quiz questions. correctAnswer is only included for admin and the course's own instructor."
+                "description": "Same access as Get Course By Id. Returns lectureLink and the lecture's quiz summaries. When a student opens it, the lecture is marked completed in their enrollment."
+              }
+            },
+            {
+              "name": "Get Quiz",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "const questions = (res.data && res.data.quiz && res.data.quiz.questions) || [];",
+                      "const next = questions.find((q) => !q.yourAnswer) || questions[0];",
+                      "if (next) pm.collectionVariables.set('questionId', next._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/cources/{{courseId}}/quizzes/{{quizId}}",
+                "description": "Same access as Get Course By Id. Works for lecture quizzes and the full quiz. Students get questions and choices without correctAnswer, except for questions they already answered (shown with yourAnswer). Admin and the owner instructor always get correctAnswer. Saves the first unanswered questionId."
+              }
+            },
+            {
+              "name": "Answer Question",
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+                },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "url": "{{baseUrl}}/cources/{{courseId}}/quizzes/{{quizId}}/questions/{{questionId}}/answer",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"answer\": \"Browser\"\n}"
+                },
+                "description": "Enrolled student only. answer must be one of the choices (400 otherwise). Each question can be answered once (409 on retry). Returns correctAnswer, isCorrect, pointsEarned, and the updated quiz score. The quiz becomes completed when every question is answered."
               }
             }
           ]
@@ -529,6 +594,55 @@
               "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"count\": 5\n}"
             },
             "description": "Admin only. Approving a request needs at least one available code for its course."
+          }
+        },
+        {
+          "name": "List Codes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const res = pm.response.json();",
+                  "const code = res.data && res.data.codes && res.data.codes[0];",
+                  "if (code) pm.collectionVariables.set('accessCodeId', code._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/access-codes?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["access-codes"],
+              "query": [
+                { "key": "status", "value": "available", "description": "available | used", "disabled": true },
+                { "key": "courseId", "value": "{{courseId}}", "disabled": true },
+                { "key": "studentId", "value": "{{studentId}}", "disabled": true },
+                { "key": "search", "value": "SEED", "description": "Part of the code (case-insensitive)", "disabled": true },
+                { "key": "page", "value": "1", "description": "Default 1" },
+                { "key": "limit", "value": "20", "description": "Default 20, max 100" }
+              ]
+            },
+            "description": "Admin only. Each code with its status, course, student, and linked subscription (null while available). summary counts total / available / used for the current filters, ignoring status. Saves the first code's id into accessCodeId."
+          }
+        },
+        {
+          "name": "Get Code By Id",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/access-codes/{{accessCodeId}}",
+            "description": "Admin only. Same details as List Codes for a single code."
           }
         }
       ]
@@ -668,6 +782,181 @@
               ]
             },
             "description": "The student who owns the request. Request must be waiting_for_correction. Moves it back to waiting_for_review."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "Admin",
+          "item": [
+            {
+              "name": "List Subscriptions",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "const sub = res.data && res.data.subscriptions && res.data.subscriptions[0];",
+                      "if (sub) pm.collectionVariables.set('subscriptionId', sub._id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/subscriptions?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["subscriptions"],
+                  "query": [
+                    { "key": "status", "value": "active", "description": "active | expired | cancelled", "disabled": true },
+                    { "key": "studentId", "value": "{{studentId}}", "disabled": true },
+                    { "key": "courseId", "value": "{{courseId}}", "disabled": true },
+                    { "key": "instructorId", "value": "{{instructorId}}", "disabled": true },
+                    { "key": "page", "value": "1", "description": "Default 1" },
+                    { "key": "limit", "value": "20", "description": "Default 20, max 100" }
+                  ]
+                },
+                "description": "Admin only. Full data: student, course, instructor, access code, progress. Saves the first result's id into subscriptionId."
+              }
+            },
+            {
+              "name": "List By Student",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/subscriptions/students/{{studentId}}",
+                "description": "Admin only. Supports status, page, limit."
+              }
+            },
+            {
+              "name": "List By Course",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/subscriptions/courses/{{courseId}}",
+                "description": "Admin only. Supports status, page, limit."
+              }
+            },
+            {
+              "name": "List By Instructor",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/subscriptions/instructors/{{instructorId}}",
+                "description": "Admin only. Subscriptions across all of the instructor's courses. Supports status, page, limit."
+              }
+            },
+            {
+              "name": "Cancel Subscription",
+              "request": {
+                "method": "PATCH",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/subscriptions/{{subscriptionId}}/cancel",
+                "description": "Admin only. active -> cancelled. The student loses course access immediately."
+              }
+            },
+            {
+              "name": "Reactivate Subscription",
+              "request": {
+                "method": "PATCH",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+                },
+                "url": "{{baseUrl}}/subscriptions/{{subscriptionId}}/reactivate",
+                "description": "Admin only. cancelled -> active, keeping the original endAt. Returns 400 if the period has already ended."
+              }
+            }
+          ]
+        },
+        {
+          "name": "My Subscriptions (student)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions", "me"],
+              "query": [
+                { "key": "status", "value": "active", "description": "active | expired | cancelled", "disabled": true }
+              ]
+            },
+            "description": "Student only. Own subscriptions with course, instructor, and progress."
+          }
+        },
+        {
+          "name": "My Courses Stats (instructor)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/subscriptions/instructor",
+            "description": "Instructor only. Own courses with activeStudents, totalStudents, and averageProgress."
+          }
+        },
+        {
+          "name": "My Course Students (instructor)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{instructorToken}}", "type": "string" }]
+            },
+            "url": "{{baseUrl}}/subscriptions/instructor/courses/{{courseId}}",
+            "description": "Instructor only, own course (403 otherwise). Students are identified by id only, no name or email. Supports status, page, limit."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Platform Overview",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/analytics/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["analytics", "overview"],
+              "query": [
+                { "key": "months", "value": "6", "description": "Months in monthlyActivity (1-24, default 6)", "disabled": true },
+                { "key": "top", "value": "5", "description": "Number of top courses (1-20, default 5)", "disabled": true }
+              ]
+            },
+            "description": "Admin only. summary (students, active subscriptions, published courses), monthly enrollments, subscriptions by status, top courses by students, and requests by status."
           }
         }
       ]
